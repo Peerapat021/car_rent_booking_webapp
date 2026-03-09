@@ -25,22 +25,10 @@ export default function MainLayout({
   children: React.ReactNode;
 }) {
   return (
-    <div className=" min-h-screen">
-       <div
-        className={`
-          ${geistSans.variable} 
-          ${geistMono.variable} 
-          antialiased
-          max-w-[960px]
-          mx-auto
-          min-h-screen
-          bg-[var(--background)]
-          shadow-[0_0_30px_rgba(0,0,0,0.5)]
-        `}
-        >
+    <div className="">
+      <div>
         <Providers>
           <Navbar />
-          {/* เพิ่ม padding-top เพื่อให้เนื้อหาไม่ถูกบัง และ padding-bottom สำหรับ mobile menu */}
           <main className="">
             {children}
           </main>
