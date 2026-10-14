@@ -83,8 +83,9 @@
 1. clone repo
 2. create .env
 3. docker compose up -d
-4. npm install
-5. npm run dev
+4. npx drizzle-kit push
+5. npm install
+6. npm run dev
 ```
 
 ## ENV

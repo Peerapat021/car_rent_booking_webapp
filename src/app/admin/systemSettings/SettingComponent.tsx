@@ -16,6 +16,8 @@ import {
 import { updateSystemSettings } from "@/lib/services/client/admin/system_settings/patch";
 import { putCompany } from "@/lib/services/client/admin/company/put";
 
+const MAX_FILE_SIZE = 5 * 1024 * 1024; // 5MB (ตรงกับ API)
+
 const TABS = [
   { id: "company", label: "ข้อมูลบริษัท", icon: <FaBuilding size={13} /> },
   { id: "booking", label: "เงื่อนไขการจอง", icon: <FaFileContract size={13} /> },
@@ -128,9 +130,7 @@ function Row({
         <p className="text-sm font-medium text-gray-800">{label}</p>
         {sub && <p className="mt-1 text-xs text-gray-500 leading-relaxed">{sub}</p>}
       </div>
-      <div className="flex-shrink-0 text-left sm:text-right">
-        {children}
-      </div>
+      <div className="flex-shrink-0 text-left sm:text-right">{children}</div>
     </div>
   );
 }
@@ -139,9 +139,7 @@ function Section({ title, children }: { title: string; children: React.ReactNode
   return (
     <div className="divide-y divide-gray-100 rounded-xl border border-gray-200 bg-white overflow-hidden shadow-sm mb-6">
       <div className="bg-gray-50/80 px-6 py-3.5">
-        <h3 className="text-xs font-semibold uppercase tracking-wider text-gray-500">
-          {title}
-        </h3>
+        <h3 className="text-xs font-semibold uppercase tracking-wider text-gray-500">{title}</h3>
       </div>
       {children}
     </div>
@@ -152,10 +150,18 @@ function Section({ title, children }: { title: string; children: React.ReactNode
 
 function CompanyPanel({ data, setData }: { data: any; setData: (d: any) => void }) {
   const company = data.company || {};
+
   const updateCompany = (key: string, value: any) =>
     setData((prev: any) => ({
       ...prev,
       company: { ...prev.company, [key]: value },
+    }));
+
+  // อัปเดตหลายฟิลด์พร้อมกันในครั้งเดียว
+  const updateCompanyFields = (fields: Record<string, any>) =>
+    setData((prev: any) => ({
+      ...prev,
+      company: { ...prev.company, ...fields },
     }));
 
   return (
@@ -185,7 +191,7 @@ function CompanyPanel({ data, setData }: { data: any; setData: (d: any) => void 
 
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-1.5">
-                อัปโหลดโลโก้ใหม่ (PNG/JPG, สูงสุด 2MB)
+                อัปโหลดโลโก้ใหม่ (PNG/JPG, สูงสุด 5MB)
               </label>
               <input
                 type="file"
@@ -193,13 +199,15 @@ function CompanyPanel({ data, setData }: { data: any; setData: (d: any) => void 
                 onChange={(e) => {
                   const file = e.target.files?.[0];
                   if (!file) return;
-                  if (file.size > 2 * 1024 * 1024) {
-                    toast.error("ไฟล์ใหญ่เกิน 2MB");
+                  if (file.size > MAX_FILE_SIZE) {
+                    toast.error("ไฟล์ใหญ่เกิน 5MB");
                     return;
                   }
                   const preview = URL.createObjectURL(file);
-                  updateCompany("company_logo_preview", preview);
-                  updateCompany("logoFile", file);
+                  updateCompanyFields({
+                    company_logo_preview: preview,
+                    logoFile: file,
+                  });
                 }}
                 className="block w-full text-sm text-gray-500 file:mr-4 file:py-2.5 file:px-5 file:rounded-lg file:border-0 file:text-sm file:font-medium file:bg-gray-100 file:text-gray-700 hover:file:bg-gray-200 transition file:cursor-pointer cursor-pointer"
               />
@@ -234,7 +242,7 @@ function CompanyPanel({ data, setData }: { data: any; setData: (d: any) => void 
 
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-1.5">
-                อัปโหลด QR ใหม่ (PNG/JPG, สูงสุด 2MB)
+                อัปโหลด QR ใหม่ (PNG/JPG, สูงสุด 5MB)
               </label>
               <input
                 type="file"
@@ -242,13 +250,15 @@ function CompanyPanel({ data, setData }: { data: any; setData: (d: any) => void 
                 onChange={(e) => {
                   const file = e.target.files?.[0];
                   if (!file) return;
-                  if (file.size > 2 * 1024 * 1024) {
-                    toast.error("ไฟล์ใหญ่เกิน 2MB");
+                  if (file.size > MAX_FILE_SIZE) {
+                    toast.error("ไฟล์ใหญ่เกิน 5MB");
                     return;
                   }
                   const preview = URL.createObjectURL(file);
-                  updateCompany("promptpay_qr_preview", preview);
-                  updateCompany("promptpayQrFile", file);
+                  updateCompanyFields({
+                    promptpay_qr_preview: preview,
+                    promptpayQrFile: file,
+                  });
                 }}
                 className="block w-full text-sm text-gray-500 file:mr-4 file:py-2.5 file:px-5 file:rounded-lg file:border-0 file:text-sm file:font-medium file:bg-gray-100 file:text-gray-700 hover:file:bg-gray-200 transition file:cursor-pointer cursor-pointer"
               />
@@ -491,12 +501,21 @@ export default function SettingComponent({ initialSettings }: { initialSettings:
   const [isSaving, setIsSaving] = useState(false);
   const [saved, setSaved] = useState(false);
 
+  // revoke blob URL เฉพาะตอนพรีวิวถูกแทนที่ หรือ component ถูกถอดออก
+  const logoPreview = settings.company?.company_logo_preview;
+  const qrPreview = settings.company?.promptpay_qr_preview;
+
   useEffect(() => {
     return () => {
-      if (settings.company?.company_logo_preview) URL.revokeObjectURL(settings.company.company_logo_preview);
-      if (settings.company?.promptpay_qr_preview) URL.revokeObjectURL(settings.company.promptpay_qr_preview);
+      if (logoPreview) URL.revokeObjectURL(logoPreview);
     };
-  }, [settings.company]);
+  }, [logoPreview]);
+
+  useEffect(() => {
+    return () => {
+      if (qrPreview) URL.revokeObjectURL(qrPreview);
+    };
+  }, [qrPreview]);
 
   const handleSave = async () => {
     setIsSaving(true);
@@ -504,13 +523,41 @@ export default function SettingComponent({ initialSettings }: { initialSettings:
       const { company, settings: nestedSettings, ...rootOverrides } = settings;
       const systemData = { ...nestedSettings, ...rootOverrides };
 
-      await updateSystemSettings(initialSettings?.company?.company_id ?? 1, systemData);
+      const companyId = company?.company_id ?? initialSettings?.company?.company_id ?? 1;
 
-      if (company && (company.logoFile || company.promptpayQrFile || Object.keys(company).length > 4)) {
-        await putCompany({
-          id: initialSettings?.company?.company_id || "1",
-          ...company,
+      await updateSystemSettings(companyId, systemData);
+
+      if (company) {
+        // แยกฟิลด์ที่ไม่ควรส่งไป API ออก
+        const {
+          company_logo,
+          promptpay_qr,
+          company_logo_preview,
+          promptpay_qr_preview,
+          company_id,
+          created_at,
+          updated_at,
+          updated_by,
+          ...fields
+        } = company;
+
+        const res = await putCompany({
+          id: String(companyId),
+          ...fields, // รวม logoFile และ promptpayQrFile ที่ putCompany รองรับ
         });
+
+        // อัปเดต path รูปใหม่จาก API และเคลียร์ไฟล์ + พรีวิว
+        setSettings((prev: any) => ({
+          ...prev,
+          company: {
+            ...prev.company,
+            ...(res?.company ?? {}),
+            logoFile: null,
+            promptpayQrFile: null,
+            company_logo_preview: null,
+            promptpay_qr_preview: null,
+          },
+        }));
       }
 
       toast.success("บันทึกการตั้งค่าเรียบร้อยแล้ว");
@@ -583,9 +630,10 @@ export default function SettingComponent({ initialSettings }: { initialSettings:
                 onClick={() => setActiveTab(tab.id)}
                 className={`
                   flex items-center gap-2 px-6 py-3.5 text-sm font-medium whitespace-nowrap transition-colors
-                  ${isActive
-                    ? "text-gray-900 border-b-2 border-gray-900 font-semibold"
-                    : "text-gray-500 hover:text-gray-700 hover:border-gray-300"
+                  ${
+                    isActive
+                      ? "text-gray-900 border-b-2 border-gray-900 font-semibold"
+                      : "text-gray-500 hover:text-gray-700 hover:border-gray-300"
                   }
                 `}
               >
@@ -599,9 +647,7 @@ export default function SettingComponent({ initialSettings }: { initialSettings:
 
       {/* Content */}
       <main className="flex-1 overflow-auto p-6">
-        <div className="max-w-[1600px] mx-auto space-y-6">
-          {panels[activeTab]}
-        </div>
+        <div className="max-w-[1600px] mx-auto space-y-6">{panels[activeTab]}</div>
       </main>
     </div>
   );
